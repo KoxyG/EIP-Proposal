@@ -7,7 +7,7 @@ status: Draft
 type: Standards Track
 category: Core
 created: 2025-08-06
-
+---
 
 ## Abstract
 This EIP proposes a mechanism that allows an external party to sponsor gas fees for Ethereum transactions, and introduces a fee bumping feature to prioritize transactions during periods of congestion.
