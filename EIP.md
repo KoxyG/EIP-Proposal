@@ -1,119 +1,93 @@
 ---
-title: <The EIP title is a few words, not a complete sentence>
-description: <Description is one full (short) sentence>
-author: <a comma separated list of the author's or authors' name + GitHub username (in parenthesis), or name and email (in angle brackets).  Example, FirstName LastName (@GitHubUsername), FirstName LastName <foo@bar.com>, FirstName (@GitHubUsername) and GitHubUsername (@GitHubUsername)>
+title: Fee Bump Transaction for Ethereum.
+description: Introduces a mechanism that allows an external party to pay the gas fees for an Ethereum transaction, improving transaction reliability and user experience.
+author: Progress Ochuko Eyaadah (@KoxyG)
 discussions-to: <URL>
 status: Draft
-type: <Standards Track, Meta, or Informational>
-category: <Core, Networking, Interface, or ERC> # Only required for Standards Track. Otherwise, remove this field.
-created: <date created on, in ISO 8601 (yyyy-mm-dd) format>
-requires: <EIP number(s)> # Only required when you reference an EIP in the `Specification` section. Otherwise, remove this field.
----
+type: Standards Track
+category: Core
+created: 2025-08-06
 
-<!--
-  READ EIP-1 (https://eips.ethereum.org/EIPS/eip-1) BEFORE USING THIS TEMPLATE!
-
-  This is the suggested template for new EIPs. After you have filled in the requisite fields, please delete these comments.
-
-  Note that an EIP number will be assigned by an editor. When opening a pull request to submit your EIP, please use an abbreviated title in the filename, `eip-draft_title_abbrev.md`.
-
-  The title should be 44 characters or less. It should not repeat the EIP number in title, irrespective of the category.
-
-  TODO: Remove this comment before submitting
--->
 
 ## Abstract
-
-<!--
-  The Abstract is a multi-sentence (short paragraph) technical summary. This should be a very terse and human-readable version of the specification section. Someone should be able to read only the abstract to get the gist of what this specification does.
-
-  TODO: Remove this comment before submitting
--->
+This EIP proposes a mechanism that allows an external party to sponsor gas fees for Ethereum transactions, and introduces a fee bumping feature to prioritize transactions during periods of congestion.
 
 ## Motivation
+As Ethereum's network usage increases, transaction fees can become volatile, making it challenging for users, especially those without ETH, to interact with dApps and the network. The inability to pay gas fees due to surge pricing or fluctuating base fees can block essential transactions, such as escrow releases or contract executions. This proposal addresses this issue by allowing a third party to sponsor the gas fees of a transaction and by introducing a fee bumping mechanism to ensure timely inclusion in the blockchain during periods of high congestion.
 
-<!--
-  This section is optional.
-
-  The motivation section should include a description of any nontrivial problems the EIP solves. It should not describe how the EIP solves those problems, unless it is not immediately obvious. It should not describe why the EIP should be made into a standard, unless it is not immediately obvious.
-
-  With a few exceptions, external links are not allowed. If you feel that a particular resource would demonstrate a compelling case for your EIP, then save it as a printer-friendly PDF, put it in the assets folder, and link to that copy.
-
-  TODO: Remove this comment before submitting
--->
 
 ## Specification
+### Gas Sponsorship
 
-<!--
-  The Specification section should describe the syntax and semantics of any new feature. The specification should be detailed enough to allow competing, interoperable implementations for any of the current Ethereum platforms (besu, erigon, ethereumjs, go-ethereum, nethermind, or others).
+This proposal introduces a mechanism where an external party (the sponsor) can pay the gas fees for a transaction initiated by another account (the sender). The transaction's sender signs the transaction, while the sponsor signs an additional approval to cover the gas fees. The sponsor's account will be charged the gas fees, ensuring that the sender can execute the transaction without holding ETH.
 
-  It is recommended to follow RFC 2119 and RFC 8170. Do not remove the key word definitions if RFC 2119 and RFC 8170 are followed.
+For example:
+```solidity
+transaction {
+    sender: 0x12345...
+    sponsor: 0x67890...
+    data: <transaction data>
+}
+```
+The transaction will be executed as usual, but the gas fee will be deducted from the sponsor’s account.
 
-  TODO: Remove this comment before submitting
--->
+## Fee Bumping Mechanism
+In the event of network congestion or rising gas prices, this proposal introduces the ability for an external party (the sponsor) to submit a fee bump. The sponsor can increase the gas fee of an already submitted transaction to ensure that it is included in the next block.
+- A FeeBumpTransaction wraps an existing transaction, adding an additional gas fee to prioritize its inclusion.
+- The sponsor pays for the fee bump, while the inner transaction remains unchanged.
+- The fee bump must exceed the original fee rate by a factor of 1.5x to be accepted.
 
-The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be interpreted as described in [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119) and [RFC 8174](https://www.rfc-editor.org/rfc/rfc8174).
+For example:
+```Solidity
+feeBumpTransaction {
+    feeSource: 0xSponsorAccount
+    fee: adjustedFee
+    innerTx: originalTransaction
+}
+```
+
+## Validity Rules
+The sponsor account must have sufficient balance to cover both the transaction's gas fee and the fee bump.
+If the sponsor's balance is insufficient, the transaction will be rejected.
+If the inner transaction is valid, but the fee bump transaction fails, the inner transaction will still be processed.
+If the inner transaction fails, the fee bump transaction will also fail.
+
+## Fee Calculation and Surge Pricing
+The fee bump transaction is considered valid if the outer fee exceeds the original transaction’s fee by at least 1.5x.
+Surge pricing considerations are unchanged, but the fee bump mechanism allows for timely transaction inclusion even during high-demand periods.
+
+## Security Considerations
+Replay Protection: Each transaction and fee bump will have a unique nonce, preventing replay attacks.
+Sponsor Trust: Sponsors must ensure they are aware of the transaction fees they are covering. Misuse of this feature may occur if users or malicious actors trick sponsors into paying for unintended transactions.
+Gas Optimization: To prevent excessive gas usage, the fee bump should be as efficient as possible and only applied when necessary to ensure inclusion in a block.
+
 
 ## Rationale
-
-<!--
-  The rationale fleshes out the specification by describing what motivated the design and why particular design decisions were made. It should describe alternate designs that were considered and related work, e.g. how the feature is supported in other languages.
-
-  The current placeholder is acceptable for a draft.
-
-  TODO: Remove this comment before submitting
--->
+Ethereum transactions can sometimes get delayed due to insufficient gas fees, particularly during periods of high network demand. By introducing gas sponsorship and fee bumping, we can enable third parties (e.g., dApps or service providers) to cover gas fees for users, improving the user experience and ensuring that critical transactions (such as those related to escrow or contract execution) can still be executed. The fee bumping mechanism is particularly important during network congestion, allowing transactions to be prioritized and included in the blockchain without needing to re-submit the transaction.
 
 TBD
 
 ## Backwards Compatibility
 
-<!--
+This proposal introduces new transaction types and changes to the existing transaction format, meaning older Ethereum clients may not be able to process these transactions without updating. However, backward compatibility can be achieved by upgrading Ethereum clients to support the new transaction formats and fee bumping mechanism.
 
-  This section is optional.
-
-  All EIPs that introduce backwards incompatibilities must include a section describing these incompatibilities and their severity. The EIP must explain how the author proposes to deal with these incompatibilities. EIP submissions without a sufficient backwards compatibility treatise may be rejected outright.
-
-  The current placeholder is acceptable for a draft.
-
-  TODO: Remove this comment before submitting
--->
-
-No backward compatibility issues found.
 
 ## Test Cases
-
-<!--
-  This section is optional for non-Core EIPs.
-
-  The Test Cases section should include expected input/output pairs, but may include a succinct set of executable tests. It should not include project build files. No new requirements may be introduced here (meaning an implementation following only the Specification section should pass all tests here.)
-  If the test suite is too large to reasonably be included inline, then consider adding it as one or more files in `../assets/eip-####/`. External links will not be allowed
-
-  TODO: Remove this comment before submitting
--->
+1. Basic Gas Sponsorship:
+- Scenario: A transaction is sent from AccountA with AccountB sponsoring the gas fee. The transaction should be processed, and the gas fee should be deducted from AccountB.
+2. Fee Bumping during Network Congestion:
+- Scenario: A transaction with insufficient fees is submitted, and a fee bump is sent from AccountB to increase the gas fee and ensure transaction inclusion.
 
 ## Reference Implementation
+The reference implementation will be available at [GitHub Repo Link], which demonstrates how to implement the gas sponsorship mechanism and fee bumping feature in Ethereum.
 
-<!--
-  This section is optional.
 
-  The Reference Implementation section should include a minimal implementation that assists in understanding or implementing this specification. It should not include project build files. The reference implementation is not a replacement for the Specification section, and the proposal should still be understandable without it.
-  If the reference implementation is too large to reasonably be included inline, then consider adding it as one or more files in `../assets/eip-####/`. External links will not be allowed.
-
-  TODO: Remove this comment before submitting
--->
 
 ## Security Considerations
 
-<!--
-  All EIPs must contain a section that discusses the security implications/considerations relevant to the proposed change. Include information that might be important for security discussions, surfaces risks and can be used throughout the life cycle of the proposal. For example, include security-relevant design decisions, concerns, important discussions, implementation-specific guidance and pitfalls, an outline of threats and risks and how they are being addressed. EIP submissions missing the "Security Considerations" section will be rejected. An EIP cannot proceed to status "Final" without a Security Considerations discussion deemed sufficient by the reviewers.
+The main security concern with this proposal is ensuring that sponsors are not tricked into paying for unauthorized transactions. Proper authorization mechanisms and transparency about transaction costs must be implemented to prevent misuse. Additionally, fee bumping should only be used when necessary, and a malicious actor should not be able to manipulate the process to inflate fees unduly.
 
-  The current placeholder is acceptable for a draft.
 
-  TODO: Remove this comment before submitting
--->
-
-Needs discussion.
 
 ## Copyright
 
